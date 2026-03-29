@@ -1,27 +1,26 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine AS base
 
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci
 
-COPY package*.json ./
-RUN npm install
-
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
-# Copy built assets to Nginx
-COPY --from=builder /app/dist /usr/share/nginx/html
-# Copy custom nginx config if we had one; default is fine for simple SPA fallback
-# usually we need a fallback to index.html for react-router:
-RUN echo "server { \
-    listen 80; \
-    location / { \
-    root /usr/share/nginx/html; \
-    index index.html index.htm; \
-    try_files \$uri \$uri/ /index.html; \
-    } \
-    }" > /etc/nginx/conf.d/default.conf
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=80
+
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server.js"]

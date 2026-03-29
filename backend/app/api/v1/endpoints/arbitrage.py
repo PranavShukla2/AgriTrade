@@ -42,7 +42,28 @@ async def arbitrage_websocket(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # We don't necessarily expect data from client, but we must wait to detect disconnect
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+@router.websocket("/orderbook/ws")
+async def orderbook_websocket(websocket: WebSocket):
+    """Streams simulated Level 2 Order Book depth."""
+    await websocket.accept()
+    import asyncio, random
+    try:
+        while True:
+            # Simulate Bids and Asks
+            base_price = 2500.0
+            bids = [{"price": round(base_price - i*2 - random.random(), 2), "volume": random.randint(10, 100)} for i in range(5)]
+            asks = [{"price": round(base_price + i*2 + random.random(), 2), "volume": random.randint(10, 100)} for i in range(5)]
+            
+            payload = {
+                "commodity": "Wheat",
+                "bids": sorted(bids, key=lambda x: x["price"], reverse=True),
+                "asks": sorted(asks, key=lambda x: x["price"])
+            }
+            await websocket.send_json(payload)
+            await asyncio.sleep(1.0)
+    except WebSocketDisconnect:
+        pass
