@@ -2,19 +2,40 @@
 
 import { useState, useEffect } from "react"
 import { ArrowRightLeft, TrendingUp, AlertTriangle } from "lucide-react"
+import { TradingChart } from "@/components/features/TradingChart"
+import { useTradeStore } from "@/store/useTradeStore"
+
+function getDummyData() {
+    const data = [];
+    let price = 2500;
+    let time = new Date("2023-10-01").getTime();
+    for (let i = 0; i < 100; i++) {
+        price = price + (Math.random() - 0.5) * 50;
+        time += 86400000; // +1 day
+        const dateStr = new Date(time).toISOString().split('T')[0];
+        data.push({ time: dateStr, value: Number(price.toFixed(2)) });
+    }
+    return data;
+}
 
 export default function TerminalPage() {
     const [orderbook, setOrderbook] = useState<{ bids: any[], asks: any[] }>({ bids: [], asks: [] })
+    const { activeCommodity } = useTradeStore()
+    const [chartData, setChartData] = useState<any[]>([])
 
     useEffect(() => {
+        setChartData(getDummyData())
+
         // Connect to FastAPI WebSocket for Level 2 Orderbook
         const ws = new WebSocket("ws://localhost:8000/api/v1/arbitrage/orderbook/ws")
         ws.onmessage = (event) => {
-            const data = JSON.parse(event.data)
-            setOrderbook({ bids: data.bids, asks: data.asks })
+            try {
+                const data = JSON.parse(event.data)
+                setOrderbook({ bids: data.bids || [], asks: data.asks || [] })
+            } catch (e) { }
         }
         return () => ws.close()
-    }, [])
+    }, [activeCommodity])
 
     return (
         <div className="h-full flex flex-col bg-slate-950 text-slate-300 overflow-hidden">
@@ -89,13 +110,9 @@ export default function TerminalPage() {
                 <div className="flex-1 flex flex-col">
 
                     {/* Chart Area */}
-                    <div className="flex-1 p-6 flex items-center justify-center border-b border-slate-800 relative bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-10">
-                        {/* Embedded abstract placeholder for TradingView Lightweight charts */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent z-0"></div>
-                        <div className="text-center z-10 p-8 rounded-2xl bg-slate-900/80 border border-slate-700 backdrop-blur-md">
-                            <TrendingUp className="w-16 h-16 text-indigo-500 mx-auto mb-4" />
-                            <h3 className="text-2xl font-bold text-white mb-2">TradingView Advanced Chart Engine</h3>
-                            <p className="text-slate-400">Spread differential overlay loaded.</p>
+                    <div className="flex-1 p-0 relative border-b border-slate-800">
+                        <div className="absolute inset-0 z-0">
+                            {chartData.length > 0 && <TradingChart data={chartData} />}
                         </div>
                     </div>
 
